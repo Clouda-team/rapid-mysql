@@ -2,51 +2,106 @@ var mysql = require('mysql'),
     util = require('util'),
     Q = require('q');
 
-exports = module.exports = function MysqlAgent(options, extra, hashKey) {
+
+exports = module.exports = MysqlAgent;
+
+function MysqlAgent(options, hashKey) {
     this._hashKey = hashKey;
     var conf = this._conf = util._extend({}, this._conf);
 
     for (var keys = Object.keys(conf), n = keys.length; n--;) {
         var key = keys[n];
-        if (extra.hasOwnProperty(key)) {
-            conf[key] = extra[key];
+        if (options.hasOwnProperty(key)) {
+            conf[key] = options[key];
         }
+    }
+    var clusters = conf.clusters, N;
+    if (clusters) {
+        N = clusters.length;
+        clusters.forEach(function (obj) {
+            obj.__proto__ = options;
+            var forbidCount = obj.forbidCount || 10;
+            obj.forbidCount = N === 1 ? 0 : forbidCount / (N - 1);
+            obj.forbidden = 0;
+            obj.slave = !!obj.slave;
+        });
+    } else {
+        options.forbidden = options.forbidCount = 0;
+        options.slave = false;
+        N = 1;
     }
 
 
-    var conns = [], allowedAgents = conf.maxAgents, pending = [], keepAliveTimer = null;
+    var conns = [], // all free connections
+        allowedAgents = conf.maxAgents,
+        pending = [], nonSlavePending = [], keepAliveTimer = null, connects = 0;
     this._context = {
-        getConnection: function (cb) {
-            if (conns.length) {
-                if (conns.length === 1) {
-                    clearTimeout(keepAliveTimer);
-                    keepAliveTimer = null;
+        getConnection: function (cb, nonSlave) {
+            var L = conns.length;
+            if (L) {
+                if (nonSlave) {
+                    for (var i = L; i-- && conns[i].slave;);
+                    if (i + 1) { // found
+                        var ret = conns.splice(i, 1)[0];
+                        if (i === 0) { // first taken
+                            clearTimeout(keepAliveTimer);
+                            keepAliveTimer = conns.length ? setTimeout(keepAliveTimeout, conns[0].keepAliveExpires - Date.now()) : null;
+                        }
+                        return cb(null, ret);
+                    }
+                } else {
+                    if (L === 1) {
+                        clearTimeout(keepAliveTimer);
+                        keepAliveTimer = null;
+                    }
+                    return cb(null, conns.pop());
                 }
-                return cb(null, conns.pop());
             }
-            pending.push(cb);
+            (nonSlave ? nonSlavePending : pending).push(cb);
             if (allowedAgents) {
                 allowedAgents--;
-                connect(conf.maxRetries);
+                connect(conf.maxRetries, nonSlave);
             }
-        }, releaseConnection: release
+        },
+        releaseConnection: release
     };
 
     // 申请新的连接
-    function connect(retries) {
-        var conn = mysql.createConnection(options);
+    function connect(retries, nonSlave) {
+        var option;
+        if (clusters) {
+            for (; ;) {
+                option = clusters[connects++ % N];
+                if (nonSlave && option.slave) { // ignore
+                } else if (option.forbidden) {
+                    option.forbidden--;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            option = options;
+        }
+
+        var conn = mysql.createConnection(option);
+        conn.slave = option.slave;
         conn.connect(function (err) {
 //            console.log('connecting', options, err, retries);
             if (err) {
-                if (typeof err.code !== 'number' && retries > 0) {
-                    setTimeout(connect, conf.retryTimeout, retries - 1);
-                } else { // report error to all pending responses
-                    pending.forEach(function (cb) {
-                        cb(err);
-                    });
-                    pending.length = 0;
+                if (typeof err.code !== 'number') {
+                    option.forbidden = option.forbidCount;
+                    if (retries) {
+                        return setTimeout(connect, conf.retryTimeout, retries - 1);
+                    }
                 }
-            } else {
+                // report error to all pending responses
+                var arr = nonSlave ? nonSlavePending : pending;
+                arr.forEach(function (cb) {
+                    cb(err);
+                });
+                arr.length = 0;
+                allowedAgents++;
+            } else { // connected
                 conn.expires = Date.now() + conf.keepAliveMaxLife;
                 release(conn);
             }
@@ -58,7 +113,9 @@ exports = module.exports = function MysqlAgent(options, extra, hashKey) {
         if (t > conn.expires) { // connection expired
             end(conn);
         }
-        if (pending.length) {
+        if (!conn.slave && nonSlavePending.length) {
+            nonSlavePending.pop()(null, conn);
+        } else if (pending.length) {
             pending.pop()(null, conn);
         } else {
             conns.push(conn);
@@ -72,7 +129,10 @@ exports = module.exports = function MysqlAgent(options, extra, hashKey) {
 
     function end(conn) {
         allowedAgents++;
-        conn.end(nop);
+        try {
+            conn.end(nop);
+        } catch (e) {
+        }
     }
 
     function keepAliveTimeout() {
@@ -83,10 +143,14 @@ exports = module.exports = function MysqlAgent(options, extra, hashKey) {
 
     function nop() {
     }
-};
 
-exports.prototype = {
+}
+var MysqlQueryContext = require('./MysqlQueryContext');
+
+MysqlAgent.prototype = {
+    __proto__: MysqlQueryContext.prototype,
     _conf: {
+        clusters: null,
         maxAgents: 30,
         keepAliveTimeout: 5000,
         keepAliveMaxLife: 30000,
@@ -95,29 +159,17 @@ exports.prototype = {
     },
     _context: null,
     constructor: exports,
-    query: function (sql, val, cb) {
-        if (typeof val === 'function') {
-            cb = val;
-            val = null;
-        }
-
+    begin: function (cb) {
         var ctx = this._context;
-
         var oldErr = new Error();
-
         return promiseCallback(Q.Promise(function (resolve, reject) {
             ctx.getConnection(function (err, conn) {
                 if (err) {
                     return reject(makeError(err, oldErr));
+                } else {
+                    resolve(transaction(ctx, conn));
                 }
-                conn.query(sql, val, function (err, ret) {
-                    if (err) {
-                        reject(makeError(err, oldErr));
-                    } else {
-                        resolve(ret);
-                    }
-                });
-            });
+            }, true);
         }), cb);
     },
     prepareStatement: function (sql, options) {
@@ -135,6 +187,40 @@ exports.prototype = {
         }
     }
 };
+
+
+function transaction(ctx, conn) {
+    conn.query('begin');
+    return {
+        _context: {
+            getConnection: function (cb) {
+                cb(null, conn);
+            }, releaseConnection: function () {
+            }
+        },
+        __proto__: MysqlQueryContext.prototype,
+        commit: function (cb) {
+            return end('commit', cb);
+        },
+        rollback: function (cb) {
+            return end('rollback', cb);
+        }
+    };
+    function end(stmt, cb) {
+        var _conn = conn;
+        conn = null;
+        return promiseCallback(Q.Promise(function (resolve, reject) {
+            _conn.query(stmt, function (err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve();
+                }
+                ctx.releaseConnection(_conn);
+            });
+        }), cb);
+    }
+}
 
 function statement(agent, sql) {
     return function (val, cb) {
@@ -214,6 +300,7 @@ function pendingStatement(agent, sql, serialize, delay) {
         pending = newPending;
     }
 }
+
 
 function promiseCallback(promise, cb) {
     if (cb) {

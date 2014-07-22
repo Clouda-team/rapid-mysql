@@ -201,4 +201,21 @@ describe('find', function () {
             next();
         }).done();
     });
+
+    it('progress', function (next) {
+        var result = [];
+        db.query('INSERT ignore into test set id=322').then(function () {
+            return db.find('test', {id: {$in: [321, 322]}}, {progress: true});
+        }).then(function () {
+            assert.deepEqual(result, [
+                {id: 321},
+                {id: 322}
+            ]);
+            next();
+        }, function (err) {
+            assert.ifError(err);
+        }, function (row) {
+            result.push(row);
+        }).done();
+    });
 });

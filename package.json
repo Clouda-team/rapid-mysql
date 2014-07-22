@@ -1,13 +1,13 @@
 {
     "name": "rapid-mysql",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "mysql database access extension for rapid",
     "main": "index.js",
     "directories": {
         "test": "test"
     },
     "scripts": {
-        "test": "tank start --test"
+        "test": "tank test"
     },
     "dependencies": {
         "mysql": "*",

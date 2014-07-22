@@ -41,7 +41,20 @@ MysqlQueryContext.prototype = {
             cb = options;
             options = null;
         }
-        return this.query(buildQuery(tableName, condition, options), null, cb);
+        var sql = buildQuery(tableName, condition, options);
+        if (options && options.progress) {
+            var ctx = this._context;
+            return Q.Promise(function (resolve, reject, progress) {
+                ctx.getConnection(function (err, conn) {
+                    if (err) {
+                        return reject(makeError(err, oldErr));
+                    }
+                    conn.query(sql, null).on('error', reject).on('result', progress).on('end', resolve);
+                });
+            });
+        } else {
+            return this.query(sql, null, cb);
+        }
     },
     findOne: function (tableName, condition, options, cb) {
         if (typeof condition === 'function') {// tableName, cb

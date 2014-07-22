@@ -122,6 +122,8 @@ options接受以下字段：
   - limit: 限制返回条数，默认为null：返回全部
   - progress: 是否逐条返回结果，默认为false
 
+注意：options.progress为true时，cb将被忽略
+
 ####查询条件对象
 
 find接受的查询条件对象为`{key: rule}`形式。一个对象的多个key，以and连接。

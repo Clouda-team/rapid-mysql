@@ -221,8 +221,6 @@ describe('find', function () {
             result.push(row);
         }).done();
     });
-
-
 });
 
 describe('insert', function () {
@@ -252,6 +250,6 @@ describe('insert', function () {
     });
 
     it('set fields', function (next) {
-
+        next();
     });
 });

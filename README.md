@@ -203,7 +203,7 @@ db.findOne('test',{id:1}).then(function(obj){
 
 示例代码：
 ```js
-db.insert('test', {name:'hello'}).then(function(ret){ // INSERT into `test` set `name`='hello'
+db.insert('test', {name:'hello'}).then(function(ret){ // INSERT into `test` values()
    console.log(ret.insertId);
 });
 ```

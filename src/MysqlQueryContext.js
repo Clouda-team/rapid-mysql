@@ -209,6 +209,7 @@ function buildCondition(condition) {
                     }
                 }), 'AND');
             }
+
         } else {
             ret += '=' + addslashes(rule);
         }

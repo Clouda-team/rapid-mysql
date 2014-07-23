@@ -1,0 +1,28 @@
+{
+    "name": "rapid-mysql",
+    "version": "0.1.0",
+    "description": "mysql database access extension for rapid",
+    "main": "index.js",
+    "directories": {
+        "test": "test"
+    },
+    "scripts": {
+        "test": "tank test"
+    },
+    "dependencies": {
+        "mysql": "*",
+        "q": "*"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Clouda-team/rapid-mysql.git"
+    },
+    "keywords": [
+        "clouda-rapid",
+        "mysql"
+    ],
+    "author": "kyriosli",
+    "bugs": {
+        "url": "https://github.com/Clouda-team/rapid-mysql/issues"
+    }
+}

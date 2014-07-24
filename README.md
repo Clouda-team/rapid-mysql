@@ -198,14 +198,32 @@ db.findOne('test',{id:1}).then(function(obj){
  - ignore: 当PK|UK冲突时，忽略该记录，默认为false
  - onDuplicate: 当ignore为false且PK|UK冲突时，执行update
  - fields: 插入的字段名称。如果指定了fields，则以`INSERT INTO tableName (fields) values (...)`形式插入，values接受数组|二维数组。
- 否则以`INSERT INTO tableName set ...`形式插入，values接受对象
+ 否则以`INSERT INTO tableName set ...`形式插入，values接受对象。如果未指定fields，而values类型为对象数组，则以第一个对象的keys为fields
+ 将所有值转换为数组；如果未指定fields而values类型为数组，则视为按表的所有列插入
  - subQuery: 如果values为空，则执行`INSERT INTO tableName (fields) select xxx`形式插入。具体的subQuery格式参考`find`
 
 示例代码：
 ```js
-db.insert('test', {name:'hello'}).then(function(ret){ // INSERT into `test` values()
+ // INSERT into `test` set `name` = John
+db.insert('test', {name:'John'}).then(function(ret){
    console.log(ret.insertId);
 });
+
+ // INSERT into test values (null,'Jack',123)
+db.insert('test', [null, 'Jack',123]};
+
+// INSERT into test(name,gid) values('Jack',123)
+db.insert('test', ['Jack',123], {fields:['name', 'gid']};
+
+// INSERT into test(name,gid) values('Tom',124),('Jerry',124)
+db.insert('test', [['Tom',124], ['Jerry', 124]], {fields:['name', 'gid']};
+
+ // This is equivalent to the former, and Jerry.fid is ignored
+db.insert('test', [
+    {name: 'Tom', gid: 124},
+    {name: 'Jerry', gid: 125, fid: 789}
+]);
+
 ```
 
 ----

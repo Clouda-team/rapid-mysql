@@ -80,24 +80,49 @@ MysqlQueryContext.prototype = {
             cb = options;
             options = null;
         }
-        var sql;
-        if (options) {
-            sql = options.ignore ? 'INSERT IGNORE INTO ' : 'INSERT INTO ';
-            sql += wrapField(tableName);
-            if (options.fields) {
-                sql += '(' + options.fields.map(wrapField).join(',') + ')';
-                if (!(values[0] instanceof Array)) {
-                    values = [values];
+        var sql = (options && options.ignore ? 'INSERT IGNORE INTO ' : 'INSERT INTO ') + wrapField(tableName),
+            fields, arr;
+        if (options && options.fields) { // insert into tbl(fields) values(...),(...)
+            fields = options.fields;
+            if (!(values[0] instanceof Array)) {
+                values = [values];
+            }
+            arr = values;
+        } else if (values instanceof Array) { //
+            if (values[0] && typeof values[0] === 'object') {
+                if (values[0] instanceof Array) {
+                    arr = values;
+                } else {
+                    fields = Object.keys(values[0]);
+                    arr = values.map(function (val) {
+                        return fields.map(function (field) {
+                            return val[field];
+                        });
+                    });
                 }
             } else {
-                sql += ' SET ?';
+                arr = [values];
             }
-            if (!options.ignore && options.onDuplicate) {
-                sql += ' ON DUPLICATE KEY UPDATE ' + options.onDuplicate;
-            }
-        } else { //
-            sql = 'INSERT INTO ' + wrapField(tableName) + ' SET ?';
         }
+        if (fields) {
+            sql += '(' + fields.map(wrapField).join(',') + ') values ';
+        } else if (arr) {
+            sql += ' values ';
+        }
+        if (arr) {
+            sql += arr.map(function (val) {
+                return '(' + val.map(addslashes) + ')';
+            });
+            values = null;
+        } else {
+            sql += ' SET ?';
+        }
+
+        if (options && !options.ignore && options.onDuplicate) {
+            sql += ' ON DUPLICATE KEY UPDATE ' + options.onDuplicate;
+        }
+
+
         return promiseCallback(this.query(sql, values), cb);
     },
     _buildQuery: buildQuery

@@ -225,7 +225,7 @@ describe('find', function () {
 
 describe('insert', function () {
     it('insert', function (next) {
-        db.query('DELETE from test where id=789').then(function () {
+        db.query('DELETE from test').then(function () {
             return db.insert('test', {id: 789})
         }).then(function () {
             return db.findOne('test', {id: 789});
@@ -250,6 +250,40 @@ describe('insert', function () {
     });
 
     it('set fields', function (next) {
-        next();
+        db.query('DELETE from test').then(function () {
+            return db.insert('test', [678], {fields: ['id']});
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.insert('test', [
+                [679],
+                [680]
+            ], {fields: ['id']});
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 2);
+            next();
+        }).done();
     });
+
+    it('without fields', function (next) {
+        db.insert('test', [681]).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.insert('test', [
+                [682],
+                [683]
+            ]);
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 2);
+            return db.insert('test', [
+                {id: 684},
+                {id: 685}
+            ]);
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 2);
+            return db.insert('test', [null]);
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            next();
+        }).done();
+    });
+
 });

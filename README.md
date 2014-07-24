@@ -105,9 +105,9 @@ db.query('SELECT 1+1 as result').then(function(results){...});
 
 返回：Promise对象
 
-###function find(tableName:string, [condition:object], [options:object], [cb:function])
+###function find(tableName:string, [where:object], [options:object], [cb:function])
 
-执行一次查询，从`tableName`指定的表中找到满足`condition`指定条件的行，并返回`options.fields`指定的列。
+执行一次查询，从`tableName`指定的表中找到满足`where`指定条件的行，并返回`options.fields`指定的列。
 
 示例代码：
 
@@ -162,7 +162,7 @@ find支持以下查询条件表达式：
   
 同一个查询条件表达式可以指定多个操作符，如：`{id: {$gt:100, $lt:200}}`
 
-子查询接受字符串(如: `SELECT id from user`)或对象类型。对象类型子查询包含`tableName`,`condition`,`fields`,`orderBy`等字段。
+子查询接受字符串(如: `SELECT id from user`)或对象类型。对象类型子查询包含`tableName`,`where`,`fields`,`orderBy`等字段。
 
 
 默认地，字段名、查询条件的值中的字符串将被处理。如果不想对其进行处理
@@ -174,7 +174,7 @@ find支持以下查询条件表达式：
 
 
 
-###function findOne(tableName:string, [condition:object], [options:object], [cb:function])
+###function findOne(tableName:string, [where:object], [options:object], [cb:function])
 
 尝试获取一个值，如果找不到，则返回ERR_NOT_FOUND
 
@@ -193,27 +193,34 @@ db.findOne('test',{id:1}).then(function(obj){
 
 ###function insert(tableName:string, values:object|array, [options:object],[cb:function]) 
 
-插入数据库。options接受以下字段：
+执行insert语句，values为插入的值、值列表、子查询表达式。options接受以下字段：
 
  - ignore: 当PK|UK冲突时，忽略该记录，默认为false
  - onDuplicate: 当ignore为false且PK|UK冲突时，执行update
  - fields: 插入的字段名称。如果指定了fields，则以`INSERT INTO tableName (fields) values (...)`形式插入，values接受数组|二维数组。
  否则以`INSERT INTO tableName set ...`形式插入，values接受对象。如果未指定fields，而values类型为对象数组，则以第一个对象的keys为fields
  将所有值转换为数组；如果未指定fields而values类型为数组，则视为按表的所有列插入
- - subQuery: 如果values为空，则执行`INSERT INTO tableName (fields) select xxx`形式插入。具体的subQuery格式参考`find`
+ - subQuery: values类型为subQuery对象,执行`INSERT INTO tableName (fields) select xxx`形式插入。默认为false
+ 具体的subQuery格式参考`find`
 
 示例代码：
 ```js
- // INSERT into `test` set `name` = John
+ // INSERT into `test` set `name` = 'John'
 db.insert('test', {name:'John'}).then(function(ret){
    console.log(ret.insertId);
 });
+
+ // INSERT into test(name) values ('Tom')
+db.insert('test', 'Tom', {fields:'name'}};
 
  // INSERT into test values (null,'Jack',123)
 db.insert('test', [null, 'Jack',123]};
 
 // INSERT into test(name,gid) values('Jack',123)
 db.insert('test', ['Jack',123], {fields:['name', 'gid']};
+
+// This is equivalent to the former, and Jack.fid is ignored
+db.insert('test', {name: 'Jack', gid: 123, fid: 789}, {fields:['name', 'gid']};
 
 // INSERT into test(name,gid) values('Tom',124),('Jerry',124)
 db.insert('test', [['Tom',124], ['Jerry', 124]], {fields:['name', 'gid']};
@@ -224,7 +231,45 @@ db.insert('test', [
     {name: 'Jerry', gid: 125, fid: 789}
 ]);
 
+ // This is equivalent to the former, and Tom.fid is ignored
+db.insert('test', [
+    {name: 'Tom', gid: 124, fid:789},
+    {name: 'Jerry', gid: 125, fid: 789}
+], {fields:['name', 'gid']});
+
+db.insert('test', {name: 'Tom', gid: Object('rand()*1000')});
+
 ```
+
+###function update(tableName:string, values:object|array, [options:object], [cb:function])
+
+执行update语句，values为更新的值、子查询
+
+
+示例代码：
+```js
+
+db.update('test', 'Jerry', {
+    fields:['name'], where: {id: 1}
+});
+
+
+db.update('test', {name:'Jerry', gid:1000}, {
+    where: {id: 1}
+});
+
+ // This is equivalent to the former
+db.update('test', ['Jerry', 1000], {
+    fields:['name', 'gid'], where: {id: 1}
+});
+
+ // This is equivalent to the former, and Jerry.fid is ignored
+db.update('test', {name:'Jerry', gid:1000, fid:0}, {
+    fields:['name', 'gid'], where: {id: 1}
+});
+
+```
+
 
 ----
 

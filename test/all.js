@@ -97,7 +97,7 @@ describe('statement', function () {
 describe('transaction', function () {
     it('begin', function (next) {
         db.begin().then(function (trans) {
-            return trans.query('CREATE table if not exists test(id int unsigned primary key auto_increment)').then(function () {
+            return trans.query('CREATE table if not exists test(id int unsigned primary key auto_increment,name varchar(32),gid int unsigned)').then(function () {
                 return trans.commit();
             });
         }).then(function () {
@@ -107,7 +107,7 @@ describe('transaction', function () {
 
     it('rollback', function (next) {
         db.begin().then(function (trans) {
-            return trans.query('INSERT into test() values(12345)').then(function () {
+            return trans.query('INSERT into test(id) values(12345)').then(function () {
                 return trans.query('SELECT id from test where id=12345');
             }).then(function (ret) {
                 assert.strictEqual(ret[0].id, 12345);
@@ -186,7 +186,7 @@ describe('find', function () {
             return db.find('test', {id: 321});
         }).then(function (rows) {
             assert.deepEqual(rows, [
-                {id: 321}
+                {id: 321, name: null, gid: null}
             ]);
             next();
         }).done();
@@ -194,7 +194,7 @@ describe('find', function () {
 
     it('findOne', function (next) {
         db.findOne('test', {id: 321}).then(function (obj) {
-            assert.deepEqual(obj, {id: 321});
+            assert.deepEqual(obj, {id: 321, name: null, gid: null});
             return db.findOne('test', {id: 99999});
         }).then(function (obj) {
             assert.ifError(obj);
@@ -211,8 +211,8 @@ describe('find', function () {
             return db.find('test', {id: {$in: [321, 322]}}, {progress: true});
         }).then(function () {
             assert.deepEqual(result, [
-                {id: 321},
-                {id: 322}
+                {id: 321, name: null, gid: null},
+                {id: 322, name: null, gid: null}
             ]);
             next();
         }, function (err) {
@@ -230,7 +230,7 @@ describe('insert', function () {
         }).then(function () {
             return db.findOne('test', {id: 789});
         }).then(function (ret) {
-            assert.deepEqual(ret, {id: 789});
+            assert.deepEqual(ret, {id: 789, name: null, gid: null});
             next();
         }).done();
     });
@@ -260,16 +260,19 @@ describe('insert', function () {
             ], {fields: ['id']});
         }).then(function (ret) {
             assert.strictEqual(ret.affectedRows, 2);
+            return db.insert('test', {id: 677, fid: 0}, {fields: ['id']});
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
             next();
         }).done();
     });
 
     it('without fields', function (next) {
-        db.insert('test', [681]).then(function (ret) {
+        db.insert('test', [681, 'Jack', 1000]).then(function (ret) {
             assert.strictEqual(ret.affectedRows, 1);
             return db.insert('test', [
-                [682],
-                [683]
+                [682, 'Tom', 1000],
+                [683, 'Jerryf', Object('rand()*1000')]
             ]);
         }).then(function (ret) {
             assert.strictEqual(ret.affectedRows, 2);
@@ -279,11 +282,74 @@ describe('insert', function () {
             ]);
         }).then(function (ret) {
             assert.strictEqual(ret.affectedRows, 2);
-            return db.insert('test', [null]);
+            return db.insert('test', [null, null, null]);
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.insert('test', null, {fields: ['id']});
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.insert('test', 'Tom', {fields: ['name']});
         }).then(function (ret) {
             assert.strictEqual(ret.affectedRows, 1);
             next();
         }).done();
     });
 
+    it('subquery', function (next) {
+        db.insert('test', "select 686,'Tom',1000", {
+            subQuery: true
+        }).then(function (ret) {
+            assert.strictEqual(ret.insertId, 686);
+            return db.insert('test', {
+                tableName: 'test',
+                where: {id: 677},
+                fields: [Object('id-1'), 'name']
+            }, {
+                fields: ['id', 'name'],
+                subQuery: true
+            });
+        }).then(function (ret) {
+            assert.strictEqual(ret.insertId, 676);
+            next();
+        }).done();
+
+    });
+
+});
+
+
+describe('update', function () {
+    it('basic', function (next) {
+        db.update('test', {name: 'Kyrios'}, {
+            where: {id: 678}
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.update('test', {name: 'Kyrios', gid: Object('gid+1')}, {
+                where: {id: 678}
+            });
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            next();
+        }).done();
+    });
+
+    it('with fields', function (next) {
+        db.update('test', 'Kyrios', {
+            fields: ['name'],
+            where: {id: 678}
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.update('test', ['Kyrios', 1000], {
+                fields: ['name', 'gid'], where: {id: 678}
+            });
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            return db.update('test', ['Kyrios', Object('gid+1')], {
+                fields: ['name', 'gid'], where: {id: 678}
+            });
+        }).then(function (ret) {
+            assert.strictEqual(ret.affectedRows, 1);
+            next();
+        }).done();
+    });
 });

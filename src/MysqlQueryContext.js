@@ -33,15 +33,15 @@ MysqlQueryContext.prototype = {
             }, nonSlave);
         }), cb);
     },
-    find: function (tableName, condition, options, cb) {
-        if (typeof condition === 'function') {// tableName, cb
-            cb = condition;
-            condition = options = null;
-        } else if (typeof options === 'function') { // tableName, condition, cb
+    find: function (tableName, where, options, cb) {
+        if (typeof where === 'function') {// tableName, cb
+            cb = where;
+            where = options = null;
+        } else if (typeof options === 'function') { // tableName, where, cb
             cb = options;
             options = null;
         }
-        var sql = buildQuery(tableName, condition, options);
+        var sql = buildQuery(tableName, where, options);
         if (options && options.progress) {
             var ctx = this._context;
             return Q.Promise(function (resolve, reject, progress) {
@@ -56,11 +56,11 @@ MysqlQueryContext.prototype = {
             return this.query(sql, null, cb);
         }
     },
-    findOne: function (tableName, condition, options, cb) {
-        if (typeof condition === 'function') {// tableName, cb
-            cb = condition;
-            condition = options = null;
-        } else if (typeof options === 'function') { // tableName, condition, cb
+    findOne: function (tableName, where, options, cb) {
+        if (typeof where === 'function') {// tableName, cb
+            cb = where;
+            where = options = null;
+        } else if (typeof options === 'function') { // tableName, where, cb
             cb = options;
             options = null;
         }
@@ -70,7 +70,7 @@ MysqlQueryContext.prototype = {
             options.limit = 1;
             options.progress = false;
         }
-        return promiseCallback(this.query(buildQuery(tableName, condition, options), null).then(function (rows) {
+        return promiseCallback(this.query(buildQuery(tableName, where, options), null).then(function (rows) {
             if (!rows.length) throw new Error('NOT_FOUND');
             return rows[0];
         }), cb);
@@ -81,54 +81,112 @@ MysqlQueryContext.prototype = {
             options = null;
         }
         var sql = (options && options.ignore ? 'INSERT IGNORE INTO ' : 'INSERT INTO ') + wrapField(tableName),
-            fields, arr;
-        if (options && options.fields) { // insert into tbl(fields) values(...),(...)
+            fields, arr, subQuery;
+
+        var isArr = values instanceof Array;
+
+        if (options) {
             fields = options.fields;
-            if (!(values[0] instanceof Array)) {
-                values = [values];
-            }
-            arr = values;
-        } else if (values instanceof Array) { //
-            if (values[0] && typeof values[0] === 'object') {
-                if (values[0] instanceof Array) {
-                    arr = values;
-                } else {
-                    fields = Object.keys(values[0]);
-                    arr = values.map(function (val) {
-                        return fields.map(function (field) {
-                            return val[field];
-                        });
-                    });
-                }
-            } else {
-                arr = [values];
-            }
-        }
-        if (fields) {
-            sql += '(' + fields.map(wrapField).join(',') + ') values ';
-        } else if (arr) {
-            sql += ' values ';
-        }
-        if (arr) {
-            sql += arr.map(function (val) {
-                return '(' + val.map(addslashes) + ')';
-            });
-            values = null;
-        } else {
-            sql += ' SET ?';
+            subQuery = options.subQuery;
         }
 
+        if (!subQuery) { // insert into tbl(fields) values(...),(...)
+            if (isArr) {
+                var firstVal = values[0];
+                if (firstVal && typeof firstVal === 'object') {
+                    if (firstVal instanceof Array) {
+                        arr = values;
+                    } else {
+                        if (!fields) {
+                            fields = Object.keys(firstVal);
+                        }
+                        arr = values.map(function (val) {
+                            return fields.map(function (field) {
+                                return val[field];
+                            });
+                        });
+                    }
+                } else {
+                    arr = [values];
+                }
+            } else if (values === null || typeof values !== 'object') {
+                arr = [
+                    [values]
+                ];
+            } else if (fields) { //
+                arr = [fields.map(function (field) {
+                    return values[field];
+                })];
+            }
+            // else: insert into tbl set field1=val1,...
+        }
+
+        if (fields) {
+            sql += '(' + fields.map(wrapField).join(',') + ')';
+        }
+
+        if (arr) {
+            sql += ' VALUES (' + arr.map(function (val) {
+                return val.map(addslashes);
+            }).join('),(') + ')';
+            values = null;
+        } else if (subQuery) {
+            sql += ' ' + buildSubQuery(values);
+            values = null;
+        } else {
+            sql += ' SET ' + serializeMap(values);
+        }
         if (options && !options.ignore && options.onDuplicate) {
             sql += ' ON DUPLICATE KEY UPDATE ' + options.onDuplicate;
         }
 
+        return promiseCallback(this.query(sql), cb);
+    },
+    update: function (tblName, value, options, cb) {
+        if (typeof options === 'function') {
+            cb = options;
+            options = null;
+        }
+        var sql = 'UPDATE ' + wrapField(tblName) + ' SET ';
+        if (options) {
+            var fields = options.fields;
+            if (fields && options.subQuery) {
+                sql += '(' + fields.map(wrapField) + ')=(' + buildSubQuery(value) + ')';
+                value = null;
+            } else if (fields) {
+                if (value instanceof Array) {
+                    sql += fields.map(function (field, i) {
+                        return wrapField(field) + '=' + addslashes(value[i]);
+                    });
+                } else if (value && typeof value === 'object') {
+                    sql += fields.map(function (field) {
+                        return wrapField(field) + '=' + addslashes(value[field]);
+                    });
+                } else {
+                    sql += wrapField(fields[0]) + '=' + addslashes(value);
+                }
+                value = null;
+            } else {
+                sql += serializeMap(value);
+            }
+            if (options.where) {
+                sql += ' WHERE ' + buildWhere(options.where);
+            }
+        } else {
+            sql += serializeMap(value);
+        }
 
-        return promiseCallback(this.query(sql, values), cb);
+        console.log('###update###', sql);
+        return promiseCallback(this.query(sql), cb);
     },
     _buildQuery: buildQuery
 };
 
-
+function serializeMap(obj) {
+    return typeof obj === 'string' ? obj : Object.keys(obj).map(function (field) {
+        return wrapField(field) + '=' + addslashes(obj[field]);
+    });
+}
 function promiseCallback(promise, cb) {
     if (cb) {
         promise = promise.then(function (ret) {
@@ -147,7 +205,11 @@ function makeError(err, oldErr) {
     return err;
 }
 
-function buildQuery(tableName, condition, options) {
+function buildSubQuery(obj) {
+    return typeof obj === 'string' ? obj : buildQuery(obj.tableName, obj.where, obj);
+}
+
+function buildQuery(tableName, where, options) {
     var fields = options && options.fields;
     if (!fields) {
         fields = '*';
@@ -157,9 +219,9 @@ function buildQuery(tableName, condition, options) {
     var str = (options && options.distinct ? 'SELECT DISTINCT ' : 'SELECT ') +
         fields + ' FROM ' + wrapField(tableName);
 
-    condition = buildCondition(condition);
-    if (condition) {
-        str += ' WHERE ' + condition;
+    where = buildWhere(where);
+    if (where) {
+        str += ' WHERE ' + where;
     }
 
     if (options) {
@@ -191,15 +253,15 @@ var ops = {
     '$nregex': ' NOT REGEXP '
 }, String = global.String;
 
-function buildCondition(condition) {
-    if (!condition || typeof condition !== 'object') return condition;
-    var keys = Object.keys(condition);
+function buildWhere(where) {
+    if (!where || typeof where !== 'object') return where;
+    var keys = Object.keys(where);
     if (!keys.length) return;
     return join(keys.map(function (key) {
-        var rule = condition[key];
+        var rule = where[key];
         if (key === '$or') {
             // assert(rule instanceof Array)
-            return join(rule.map(buildCondition), 'OR');
+            return join(rule.map(buildWhere), 'OR');
         }
         var ret = '`' + key + '`';
         if (rule === null) {
@@ -219,7 +281,7 @@ function buildCondition(condition) {
                             return '0';
                         } else if (typeof val === 'object') {
                             return ret + (op === '$in' ? ' IN (' : ' NOT IN (') +
-                                (val instanceof Array ? rule[op].map(addslashes).join(',') : buildQuery(val.tableName, val.condition, val)) + ')';
+                                (val instanceof Array ? rule[op].map(addslashes).join(',') : buildSubQuery(val)) + ')';
                         }
                     } else {
                         return '1';

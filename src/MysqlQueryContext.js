@@ -1,4 +1,4 @@
-var Q = require('q');
+var Q = require('q'), Object_keys = Object.keys;
 
 exports = module.exports = MysqlQueryContext;
 
@@ -98,7 +98,7 @@ MysqlQueryContext.prototype = {
                         arr = values;
                     } else {
                         if (!fields) {
-                            fields = Object.keys(firstVal);
+                            fields = Object_keys(firstVal);
                         }
                         arr = values.map(function (val) {
                             return fields.map(function (field) {
@@ -122,7 +122,7 @@ MysqlQueryContext.prototype = {
         }
 
         if (fields) {
-            sql += '(' + fields.map(wrapField).join(',') + ')';
+            sql += '(' + fields.map(wrapField).toString() + ')';
         }
 
         if (arr) {
@@ -176,16 +176,15 @@ MysqlQueryContext.prototype = {
             sql += serializeMap(value);
         }
 
-        console.log('###update###', sql);
         return promiseCallback(this.query(sql), cb);
     },
     _buildQuery: buildQuery
 };
 
 function serializeMap(obj) {
-    return typeof obj === 'string' ? obj : Object.keys(obj).map(function (field) {
+    return typeof obj === 'string' ? obj : Object_keys(obj).map(function (field) {
         return wrapField(field) + '=' + addslashes(obj[field]);
-    });
+    }).toString();
 }
 function promiseCallback(promise, cb) {
     if (cb) {
@@ -214,7 +213,7 @@ function buildQuery(tableName, where, options) {
     if (!fields) {
         fields = '*';
     } else if (typeof fields === 'object') {
-        fields = fields.map(wrapField).join();
+        fields = fields.map(wrapField).toString();
     }
     var str = (options && options.distinct ? 'SELECT DISTINCT ' : 'SELECT ') +
         fields + ' FROM ' + wrapField(tableName);
@@ -255,7 +254,7 @@ var ops = {
 
 function buildWhere(where) {
     if (!where || typeof where !== 'object') return where;
-    var keys = Object.keys(where);
+    var keys = Object_keys(where);
     if (!keys.length) return;
     return join(keys.map(function (key) {
         var rule = where[key];
@@ -270,7 +269,7 @@ function buildWhere(where) {
             if (rule instanceof String) {
                 ret += '=' + rule;
             } else {
-                ret = join(Object.keys(rule).map(function (op) {
+                ret = join(Object_keys(rule).map(function (op) {
                     var tmp = ops[op];
                     if (tmp) {
                         return ret + tmp + addslashes(rule[op]);
@@ -281,16 +280,16 @@ function buildWhere(where) {
                             return '0';
                         } else if (typeof val === 'object') {
                             return ret + (op === '$in' ? ' IN (' : ' NOT IN (') +
-                                (val instanceof Array ? rule[op].map(addslashes).join(',') : buildSubQuery(val)) + ')';
+                                (val instanceof Array ? rule[op].map(addslashes).toString() : buildSubQuery(val)) + ')';
                         }
                     } else {
                         return '1';
                     }
                     switch (op) {
                         case 'in':
-                            return ret + ' IN (' + rule[op].map(addslashes).join(',') + ')';
+                            return ret + ' IN (' + rule[op].map(addslashes).toString() + ')';
                         case 'nin':
-                            return ret + ' NOT IN (' + rule[op].map(addslashes).join(',') + ')';
+                            return ret + ' NOT IN (' + rule[op].map(addslashes).toString() + ')';
                         default:
                             return '1';
                     }

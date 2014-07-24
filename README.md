@@ -253,7 +253,6 @@ db.update('test', 'Jerry', {
     fields:['name'], where: {id: 1}
 });
 
-
 db.update('test', {name:'Jerry', gid:1000}, {
     where: {id: 1}
 });

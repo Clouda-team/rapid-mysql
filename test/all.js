@@ -4,7 +4,7 @@ var db, mysql = require('../');
 describe('main', function () {
 
     it('get agent', function (next) {
-        db = mysql.getAgent('mysql://root:root@localhost:3306/test');
+        db = mysql.db('mysql://root:root@localhost:3306/test');
         db.query('select 1+1 as result', function (err, rows) {
             assert.ifError(err);
             assert(rows[0].result == 2);
@@ -22,7 +22,7 @@ describe('main', function () {
     });
 
     it('using clusters', function (next) {
-        var db = mysql.getAgent('mysql://root:root@newhost:3306/test?clusters=127.0.0.1%7C127.0.0.2%3Fslave%3Dtrue');
+        var db = mysql.db('mysql://root:root@newhost:3306/test?clusters=127.0.0.1%7C127.0.0.2%3Fslave%3Dtrue');
         var ctx = db._context;
         ctx.getConnection(function (err, conn) {
             assert.ifError(err);
@@ -48,18 +48,34 @@ describe('main', function () {
             });
         });
     });
+    it('cluster retries', function (next) {
+        var db = mysql.db({
+            hostname: 'somehost',
+            port: 3307,
+            user: 'root',
+            password: 'root',
+            clusters: [ '127.0.0.10', '127.0.0.11', {host: '127.0.0.12', port: 3306}],
+            maxRetries: 11,
+            retryTimeout: 1000,
+            connectTimeout: 100
+        });
+        db.query('SELECT 1+1 result').then(function (result) {
+            assert.strictEqual(result[0].result, 2);
+            next();
+        }).done();
+    });
 });
 
 
 describe('statement', function () {
     it('using cache', function (next) {
-        var stmt = db.prepareStatement('SELECT ?+? as result');
-        var obj = stmt.query([1, 2]);
-        var obj2 = stmt.query(["1", "2"]);
+        var stmt = db.prepare('SELECT ?+? as result');
+        var obj = stmt([1, 2]);
+        var obj2 = stmt(["1", "2"]);
         assert.strictEqual(obj, obj2);
         obj.then(function () {
             process.nextTick(function () {
-                var obj3 = stmt.query([1, 2]);
+                var obj3 = stmt([1, 2]);
                 assert.notStrictEqual(obj, obj3);
                 next();
             });
@@ -67,11 +83,11 @@ describe('statement', function () {
     });
 
     it('using cache and cacheTime', function (next) {
-        var stmt = db.prepareStatement('SELECT ?+? as result', {cacheTime: 3000});
-        var obj = stmt.query([1, 2]);
+        var stmt = db.prepare('SELECT ?+? as result', {cacheTime: 3000});
+        var obj = stmt([1, 2]);
         obj.then(function () {
             setTimeout(function () {
-                var obj3 = stmt.query([1, 2]);
+                var obj3 = stmt([1, 2]);
                 assert.strictEqual(obj, obj3);
                 next();
             }, 100);
@@ -79,13 +95,13 @@ describe('statement', function () {
     });
 
     it('with noCache', function (next) {
-        var stmt = db.prepareStatement('SELECT 1 as result', {cacheTime: 3000});
-        var obj = stmt.query();
-        var obj2 = stmt.query(true);
+        var stmt = db.prepare('SELECT 1 as result', {cacheTime: 3000});
+        var obj = stmt();
+        var obj2 = stmt(true);
         assert.strictEqual(obj, obj2);
         obj.then(function () {
             process.nextTick(function () {
-                var obj3 = stmt.query(true);
+                var obj3 = stmt(true);
                 assert.notStrictEqual(obj, obj3);
                 next();
             });

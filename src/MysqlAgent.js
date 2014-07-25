@@ -33,7 +33,7 @@ function MysqlAgent(options, hashKey) {
 
 
     var conns = [], // all free connections
-        allowedAgents = conf.maxAgents,
+        allowedAgents = conf.maxConnects,
         pending = [], nonSlavePending = [], keepAliveTimer = null, connects = 0;
     this._context = {
         getConnection: function (cb, nonSlave) {
@@ -85,13 +85,14 @@ function MysqlAgent(options, hashKey) {
 
         var conn = mysql.createConnection(option);
         conn.slave = option.slave;
+//        console.log('connecting', retries);
         conn.connect(function (err) {
-//            console.log('connecting', options, err, retries);
             if (err) {
+//                console.log('connect::' + err.message, retries);
                 if (typeof err.code !== 'number') {
                     option.forbidden = option.forbidCount;
                     if (retries) {
-                        return setTimeout(connect, conf.retryTimeout, retries - 1);
+                        return setTimeout(connect, clusters ? 0 : conf.retryTimeout, retries - 1);
                     }
                 }
                 // report error to all pending responses
@@ -151,7 +152,7 @@ MysqlAgent.prototype = {
     __proto__: MysqlQueryContext.prototype,
     _conf: {
         clusters: null,
-        maxAgents: 30,
+        maxConnects: 30,
         keepAliveTimeout: 5000,
         keepAliveMaxLife: 30000,
         retryTimeout: 400,
@@ -172,18 +173,14 @@ MysqlAgent.prototype = {
             }, true);
         }), cb);
     },
-    prepareStatement: function (sql, options) {
+    prepare: function (sql, options) {
         options = Object(options);
         options.__proto__ = {useCache: true, cacheTime: 0, serializer: Function.call.bind(Array.prototype.join)};
 
         if (options.useCache) {
-            return {
-                query: pendingStatement(this, sql, options.serializer, options.cacheTime)
-            };
+            return makePendingStatement(this, sql, options.serializer, options.cacheTime);
         } else {
-            return {
-                query: statement(this, sql)
-            };
+            return makeStatement(this, sql);
         }
     }
 };
@@ -222,7 +219,7 @@ function transaction(ctx, conn) {
     }
 }
 
-function statement(agent, sql) {
+function makeStatement(agent, sql) {
     return function (val, cb) {
         if (typeof val === 'function') {
             cb = val;
@@ -232,7 +229,7 @@ function statement(agent, sql) {
     }
 }
 
-function pendingStatement(agent, sql, serialize, delay) {
+function makePendingStatement(agent, sql, serialize, delay) {
     var pending = {};
     return delay ? function (val, cb, noCache) {
         if (typeof val === 'function') { // cb, [noCache]

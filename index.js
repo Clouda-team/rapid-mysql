@@ -1,8 +1,8 @@
 var DEFAULT_HOST = '127.0.0.1', DEFAULT_PORT = 3306;
 
 var agents = {}, MysqlAgent = require('./src/MysqlAgent');
-exports.getAgent = function (options) {
-    var hashKey, extra;
+exports.db = function (options) {
+    var hashKey;
     if (typeof options === 'string') {
         options = parseUrl(options);
     }

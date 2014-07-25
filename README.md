@@ -15,7 +15,7 @@ Usage
 ---
 
 ```js
-var db = require('rapid-mysql').getAgent('mysql://user:password@host_or_ip:port/dbname');
+var db = require('rapid-mysql').db('mysql://user:password@host_or_ip:port/dbname');
 db.query('SELECT * from tbl where id=?', [id], function(err, rows){...});
 db.query('SELECT * from tbl').then(function(rows){...}, function(err){...});
 ```
@@ -28,7 +28,7 @@ API
 static methods
 ---
 
-###function getAgent(url:string | options:object)
+###function db(url:string | options:object)
 
 创建新的连接上下文/获取已有连接上下文。url与options格式参照
  [felixge/node-mysql](https://github.com/felixge/node-mysql#establishing-connections)
@@ -37,16 +37,16 @@ static methods
 
 其它选项：
 
-  * maxAgents: 最大同时连接数（默认：30）
-  * keepAliveTimeout: 连接复用的超时等待时间（单位：ms，默认：5000ms）。连接被释放后，超过该时间没有请求时则连接断开
-  * keepAliveMaxLife: 连接复用的最长生命周期（单位：ms，默认：30000ms）。连接被建立后，超过该时间后不再被复用
+  * maxConnects: 最大同时连接数（默认：30）
+  * keepAliveTimeout: 连接复用的超时等待时间（单位：ms，默认：5s）。连接被释放后，超过该时间没有被使用时则连接断开
+  * keepAliveMaxLife: 连接复用的最长生命周期（单位：ms，默认：30s）。连接被建立后，超过该时间后不再被复用
   * retryTimeout: 连接失败的重试间隔（默认: 400ms）
   * maxRetries: 连接失败最大重试次数（默认：3）
 
 示例代码：
 
 ```js
-var db = require('rapid-mysql').getAgent('mysql://root:root@localhost/test?maxRetries=1');
+var db = require('rapid-mysql').db('mysql://root:root@localhost/test?maxRetries=1');
 ```
 
 ####使用集群
@@ -62,8 +62,8 @@ clusters接受三种数据类型：对象|字符串数组、字符串。
 示例代码：
 
 ```js
-var db = require('rapid-mysql').getAgent('mysql://root:root@localhost/test?clusters=192.168.0.1%7C192.168.0.2');
-var db = require('rapid-mysql').getAgent({
+var db = require('rapid-mysql').db('mysql://root:root@localhost/test?clusters=192.168.0.1%7C192.168.0.2');
+var db = require('rapid-mysql').db({
     port: 3306,
     username: 'root',
     password: 'root',
@@ -73,13 +73,14 @@ var db = require('rapid-mysql').getAgent({
 
 注意：
 
-  - 使用cluster不会影响`getAgent`函数的hash过程。如果两次调用`getAgent`传入的参数的hash结果相同，则以首次调用`getAgent`传入的参数
+  - 使用cluster不会影响`db`函数的hash过程。如果两次调用`db`传入的参数的hash结果相同，则以首次调用`db`传入的参数
 为准
   - 每个cluster对象的属性将覆盖上层对象的对应属性。此外cluster接受额外的属性：
     - slave: 是否为从库，从库的连接不会被insert/select/update/delete等语句选中。默认为false。
     - forbidCount: 连接失败时屏蔽次数，如果当前库连接失败，在接下来的若干次请求中不会尝试连接此地址。默认为10
-  - cluster无法覆盖maxAgents等上文提到的其它选项
+  - cluster无法覆盖maxConnects等上文提到的其它选项
   - 非slave连接被释放时，当有写操作在排队申请连接时将优先处理。
+  - 如果使用cluster则忽略retryTimeout
 
 返回：Agent对象
 
@@ -275,9 +276,9 @@ db.update('test', {name:'Jerry', gid:1000, fid:0}, {
 Agent
 ---
 
-Agent是从getAgent获得的实例，继承于QueryContext
+Agent是从db获得的实例，继承于QueryContext
 
-###function prepareStatement(query:string, [options:object])
+###function prepare(query:string, [options:object])
 
 创建一个查询语句。查询语句可以被稍后执行，并允许对请求进行合并、缓存
 
@@ -292,10 +293,10 @@ Agent是从getAgent获得的实例，继承于QueryContext
 示例代码：
 
 ```js
-var stmt = db.prepareStatement('SELECT * from user where id=?');
+var stmt = db.prepare('SELECT * from user where id=?');
 ```
 
-返回：Statement对象
+返回：Statement对象。
 
 
 
@@ -322,9 +323,9 @@ db.begin().then(function(trans){
 Statement
 ---
 
-Statement是Agent.prepareStatement返回的结果
+Statement是Agent.prepare返回的结果，本身是一个函数，可以被调用，原型为
 
-###function query([data:array], [cb:function], [noCache:boolean])
+###function Statement([data:array], [cb:function], [noCache:boolean])
 
 执行Statement。如果statement启用了cache，且之前有命中的请求未到期或未完成，且noCache不为true，则返回之前缓存的结果
 

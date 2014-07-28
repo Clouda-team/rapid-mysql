@@ -228,7 +228,9 @@ function buildQuery(tableName, where, options) {
             str += ' GROUP BY ' + wrapField(options.groupBy);
 
         if (options.orderBy) {
-            str += ' ORDER BY ' + wrapField(options.orderBy);
+            str += ' ORDER BY ' + (options.orderBy instanceof Array ?
+                options.orderBy.map(wrapField).toString() :
+                wrapField(options.orderBy));
             if (options.desc) {
                 str += ' DESC';
             }

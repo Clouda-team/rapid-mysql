@@ -105,7 +105,7 @@ db.find('user',{
 options接受以下字段：
 
   - fields: 返回的字段列表，字符串或数组
-  - orderBy: 排序字段，默认为null
+  - orderBy: 排序字段，类型为字符串或数组，默认为null
   - desc: 是否降序排序，默认为null
   - groupBy: 分组
   - distinct: 是否返回值去重，默认为false,

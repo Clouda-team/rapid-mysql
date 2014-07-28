@@ -145,6 +145,7 @@ describe('query builder', function () {
         assert.strictEqual('SELECT id,name FROM `test`', db._buildQuery('test', null, {fields: 'id,name'}));
         assert.strictEqual('SELECT DISTINCT * FROM `test`', db._buildQuery('test', null, {distinct: true}));
         assert.strictEqual('SELECT * FROM `test` ORDER BY `id`', db._buildQuery('test', null, {orderBy: 'id'}));
+        assert.strictEqual('SELECT * FROM `test` ORDER BY `id`,`fid`', db._buildQuery('test', null, {orderBy: ['id', 'fid']}));
         assert.strictEqual('SELECT * FROM `test` GROUP BY `gid` ORDER BY `id` DESC LIMIT 10', db._buildQuery('test', null, {orderBy: 'id', desc: true, groupBy: 'gid', limit: 10}));
         assert.strictEqual("SELECT * FROM `test` WHERE `id`=123", db._buildQuery('test', {id: 123}, null));
         assert.strictEqual('SELECT count(id) FROM `test` WHERE `time`=UNIX_TIMESTAMP() ORDER BY rand()', db._buildQuery('test', {

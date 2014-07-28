@@ -32,4 +32,4 @@ db.query('SELECT * from tbl').then(function(rows){...}, function(err){...});
 Community
 ---
 
-Visit [clouda+](http://cloudap.duapp.com/) official site for more info.
+Visit [clouda+](http://cloudaplus.duapp.com/) official site for more info.

@@ -13,10 +13,19 @@ describe('main', function () {
     });
 
     it('promise error', function (next) {
+        mysql.db('mysql://root:root@localhost:3307/test?retryTimeout=0&connectTimeout=50').query('select 1').then(function (result) {
+            throw 'should not been resolved';
+        }, function (err) {
+            assert(err);
+            next();
+        }).done();
+    });
+
+    it('promise error', function (next) {
         db.query('select dont.exist from dont').then(function (result) {
             throw 'should not been resolved';
         }, function (err) {
-            assert(Boolean(err));
+            assert(err);
             next();
         }).done();
     });
@@ -68,6 +77,16 @@ describe('main', function () {
 
 
 describe('statement', function () {
+    it('no cache', function (next) {
+        db.prepare('SELECT ?+? as result', {useCache: false})([1, 2]).then(function (ret) {
+            assert(ret[0].result === 3);
+            return db.prepare('SELECT 5 as result', {useCache: false})(function (err, ret) {
+                assert.ifError(err);
+                assert(ret[0].result === 5);
+                next();
+            });
+        }).done();
+    });
     it('using cache', function (next) {
         var stmt = db.prepare('SELECT ?+? as result');
         var obj = stmt([1, 2]);
@@ -346,6 +365,9 @@ describe('update', function () {
             });
         }).then(function (ret) {
             assert.strictEqual(ret.affectedRows, 1);
+            return db.update('test', { gid: Object('gid+1')});
+        }).then(function (ret) {
+            assert(ret.affectedRows);
             next();
         }).done();
     });
@@ -369,4 +391,5 @@ describe('update', function () {
             next();
         }).done();
     });
+
 });

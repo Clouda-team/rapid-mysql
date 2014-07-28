@@ -150,10 +150,7 @@ MysqlQueryContext.prototype = {
         var sql = 'UPDATE ' + wrapField(tblName) + ' SET ';
         if (options) {
             var fields = options.fields;
-            if (fields && options.subQuery) {
-                sql += '(' + fields.map(wrapField) + ')=(' + buildSubQuery(value) + ')';
-                value = null;
-            } else if (fields) {
+            if (fields) {
                 if (value instanceof Array) {
                     sql += fields.map(function (field, i) {
                         return wrapField(field) + '=' + addslashes(value[i]);
@@ -286,14 +283,6 @@ function buildWhere(where) {
                         }
                     } else {
                         return '1';
-                    }
-                    switch (op) {
-                        case 'in':
-                            return ret + ' IN (' + rule[op].map(addslashes).toString() + ')';
-                        case 'nin':
-                            return ret + ' NOT IN (' + rule[op].map(addslashes).toString() + ')';
-                        default:
-                            return '1';
                     }
                 }), 'AND');
             }

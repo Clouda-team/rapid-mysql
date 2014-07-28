@@ -173,13 +173,18 @@ db.findOne('test',{id:1}).then(function(obj){
 
 ###function insert(tableName:string, values:object|array, [options:object],[cb:function]) 
 
-执行insert语句，values为插入的值、值列表、子查询表达式。options接受以下字段：
+执行insert语句，values为插入的值、值列表、子查询表达式，options为选项。
+
+insert支持的选项有：
 
  - ignore: 当PK|UK冲突时，忽略该记录，默认为false
  - onDuplicate: 当ignore为false且PK|UK冲突时，执行update
- - fields: 插入的字段名称。如果指定了fields，则以`INSERT INTO tableName (fields) values (...)`形式插入，values接受数组|二维数组。
- 否则以`INSERT INTO tableName set ...`形式插入，values接受对象。如果未指定fields，而values类型为对象数组，则以第一个对象的keys为fields
- 将所有值转换为数组；如果未指定fields而values类型为数组，则视为按表的所有列插入
+ - fields: 插入的字段名称。确定插入字段的方式为：
+   - 如果指定了fields，则以指定的fields执行`INSERT INTO tableName (fields) values (...)`
+   - 如果未指定fields，且values为对象数组，则以values[0]的keys作为fields
+   - 否则，如果values为对象，则执行`INSERT INTO tableName set ...`
+   - 否则，执行`INSERT into tableName values (...)`，
+   - 如果values为二维数组/对象数组，则执行多条插入
  - subQuery: values类型为subQuery对象,执行`INSERT INTO tableName (fields) select xxx`形式插入。默认为false
  具体的subQuery格式参考`find`
 
@@ -223,8 +228,13 @@ db.insert('test', {name: 'Tom', gid: Object('rand()*1000')});
 
 ###function update(tableName:string, values:object|array, [options:object], [cb:function])
 
-执行update语句，values为更新的值、子查询
+执行update语句，其中values为更新的值，options为选项。
 
+update支持的选项有：
+
+  - fields: 更新的字段名称。
+  - where: 查询条件
+  
 
 示例代码：
 ```js

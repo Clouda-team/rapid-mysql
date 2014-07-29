@@ -2,6 +2,7 @@ RAPID-MYSQL
 ===
 
 [![NPM version](https://badge.fury.io/js/rapid-mysql.svg)](http://badge.fury.io/js/rapid-mysql)
+[![Dependency Status](https://david-dm.org/clouda-team/rapid-mysql.svg)](https://david-dm.org/clouda-team/rapid-mysql)
 
 ---
 

@@ -12,8 +12,9 @@ describe('main', function () {
         }).done();
     });
 
+    this.timeout(3000);
     it('promise error', function (next) {
-        mysql.db('mysql://root:root@localhost:3307/test?retryTimeout=0&connectTimeout=50').query('select 1').then(function (result) {
+        mysql.db('mysql://root:root@localhost:3307/test?retryTimeout=10&connectTimeout=500').query('select 1').then(function (result) {
             throw 'should not been resolved';
         }, function (err) {
             assert(err);
@@ -31,7 +32,7 @@ describe('main', function () {
     });
 
     it('using clusters', function (next) {
-        var db = mysql.db('mysql://root:root@newhost:3306/test?clusters=127.0.0.1%7C127.0.0.2%3Fslave%3Dtrue');
+        var db = mysql.db('mysql://root:root@newhost:3306/test?clusters=127.0.0.1%7Clocalhost%3Fslave%3Dtrue');
         var ctx = db._context;
         ctx.getConnection(function (err, conn) {
             assert.ifError(err);
@@ -40,7 +41,7 @@ describe('main', function () {
             ctx.getConnection(function (err, conn2) {// new connection
                 assert.ifError(err);
                 conn2.id = 'conn2';
-                assert.equal(conn2.config.host, '127.0.0.2');
+                assert.equal(conn2.config.host, 'localhost');
                 ctx.releaseConnection(conn2);
                 ctx.getConnection(function (err, conn3) { // should be conn2
                     assert.ifError(err);
@@ -63,7 +64,7 @@ describe('main', function () {
             port: 3307,
             user: 'root',
             password: 'root',
-            clusters: [ '127.0.0.10', '127.0.0.11', {host: '127.0.0.12', port: 3306}],
+            clusters: [ '127.0.0.10', '127.0.0.11', {host: '127.0.0.1', port: 3306}],
             maxRetries: 11,
             retryTimeout: 1000,
             connectTimeout: 100

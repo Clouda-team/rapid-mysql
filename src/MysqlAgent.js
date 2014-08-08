@@ -5,8 +5,7 @@ var mysql = require('mysql'),
 
 exports = module.exports = MysqlAgent;
 
-function MysqlAgent(options, hashKey) {
-    this._hashKey = hashKey;
+function MysqlAgent(options) {
     var conf = this._conf = util._extend({}, this._conf);
 
     for (var keys = Object.keys(conf), n = keys.length; n--;) {

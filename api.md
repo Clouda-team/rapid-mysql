@@ -9,10 +9,8 @@ static methods
 
 ###function db(url:string | options:object)
 
-创建新的连接上下文/获取已有连接上下文。url与options格式参照
+创建新的连接上下文。url与options格式参照
  [felixge/node-mysql](https://github.com/felixge/node-mysql#establishing-connections)
-
-我们根据hostname:port+user:password+dbname来查找已创建的Agent对象
 
 其它选项：
 

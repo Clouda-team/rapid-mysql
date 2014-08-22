@@ -1,11 +1,11 @@
 var Q = require('q'), Object_keys = Object.keys;
 
-exports = module.exports = MysqlQueryContext;
+exports = module.exports = MysqlImpl;
 
-function MysqlQueryContext() {
+function MysqlImpl() {
 }
 
-MysqlQueryContext.prototype = {
+MysqlImpl.prototype = {
     query: function (sql, val, cb) {
         if (typeof val === 'function') {
             cb = val;
@@ -41,7 +41,7 @@ MysqlQueryContext.prototype = {
             cb = options;
             options = null;
         }
-        var sql = buildQuery(tableName, where, options);
+        var sql = buildSelectQuery(tableName, where, options);
         if (options && options.progress) {
             var ctx = this._context;
             return Q.Promise(function (resolve, reject, progress) {
@@ -70,7 +70,7 @@ MysqlQueryContext.prototype = {
             options.limit = 1;
             options.progress = false;
         }
-        return promiseCallback(this.query(buildQuery(tableName, where, options), null).then(function (rows) {
+        return promiseCallback(this.query(buildSelectQuery(tableName, where, options), null).then(function (rows) {
             if (!rows.length) throw new Error('NOT_FOUND');
             return rows[0];
         }), cb);
@@ -175,7 +175,34 @@ MysqlQueryContext.prototype = {
 
         return promiseCallback(this.query(sql), cb);
     },
-    _buildQuery: buildQuery
+    _buildQuery: buildSelectQuery,
+    get: function (key) {
+        var tbl = this._tableName, idx;
+        if (typeof key === 'string' && (idx = key.indexOf('.')) + 1) {
+            tbl = key.substr(0, idx);
+            key = key.substr(idx + 1);
+        }
+        var query = {};
+        query[this._key] = key;
+
+        return this.find(tbl, query, {limit: 1}).then(function (arr) {
+            return arr[0];
+        });
+    }, set: function (key, val) {
+        var tbl = this._tableName, idx;
+        if (typeof key === 'string' && (idx = key.indexOf('.')) + 1) {
+            tbl = key.substr(0, idx);
+            key = key.substr(idx + 1);
+        }
+        var keys = Object_keys(val);
+        val[this._key] = key;
+        return this.insert(tbl, val, {
+            onDuplicate: keys.map(function (key) {
+                key = wrapField(key);
+                return key + '=values(' + key + ')';
+            }).join()
+        });
+    }
 };
 
 function serializeMap(obj) {
@@ -202,10 +229,10 @@ function makeError(err, oldErr) {
 }
 
 function buildSubQuery(obj) {
-    return typeof obj === 'string' ? obj : buildQuery(obj.tableName, obj.where, obj);
+    return typeof obj === 'string' ? obj : buildSelectQuery(obj.tableName, obj.where, obj);
 }
 
-function buildQuery(tableName, where, options) {
+function buildSelectQuery(tableName, where, options) {
     var fields = options && options.fields;
     if (!fields) {
         fields = '*';

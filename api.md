@@ -7,7 +7,7 @@ API
 static methods
 ---
 
-###function db(url:string | options:object)
+###function instance(url:string | options:object)
 
 创建新的连接上下文。url与options格式参照
  [felixge/node-mysql](https://github.com/felixge/node-mysql#establishing-connections)
@@ -19,45 +19,22 @@ static methods
   * keepAliveMaxLife: 连接复用的最长生命周期（单位：ms，默认：30s）。连接被建立后，超过该时间后不再被复用
   * retryTimeout: 连接失败的重试间隔（默认: 400ms）
   * maxRetries: 连接失败最大重试次数（默认：3）
+  * key: get/set接口中的主键名，默认为`'id'`
 
 示例代码：
 
 ```js
-var db = require('rapid-mysql').db('mysql://root:root@localhost/test?maxRetries=1');
-```
-
-####使用集群
-
-通过指定clusters选项来使用集群。
-
-clusters接受三种数据类型：对象|字符串数组、字符串。
-
-  - 对于含字符串的数组（如：`['192.168.0.1:3306','192.168.1.2:3306']`），我们将每个字符串中抽取
-  host/port/username/password/database等信息并转换为对象，按照对象数组处理
-  - 对于字符串类型，字符串将被以`|`切割为字符串列表后按字符串数组类型处理
-
-示例代码：
-
-```js
-var db = require('rapid-mysql').db('mysql://root:root@localhost/test?clusters=192.168.0.1%7C192.168.0.2');
-var db = require('rapid-mysql').db({
-    port: 3306,
-    username: 'root',
-    password: 'root',
-    cluster: [{host:'192.168.0.1'}, '192.168.0.2']
+var db = require('rapid-mysql').instance({
+  host: 'localhost',
+  port: 3306,
+  user: 'root',
+  password: 'root',
+  resource: 'test'
 });
 ```
 
-注意：
-
-  - 使用cluster不会影响`db`函数的hash过程。如果两次调用`db`传入的参数的hash结果相同，则以首次调用`db`传入的参数
-为准
-  - 每个cluster对象的属性将覆盖上层对象的对应属性。此外cluster接受额外的属性：
-    - slave: 是否为从库，从库的连接不会被insert/select/update/delete等语句选中。默认为false。
-    - forbidCount: 连接失败时屏蔽次数，如果当前库连接失败，在接下来的若干次请求中不会尝试连接此地址。默认为10
-  - cluster无法覆盖maxConnects等上文提到的其它选项
-  - 非slave连接被释放时，当有写操作在排队申请连接时将优先处理。
-  - 如果使用cluster则忽略retryTimeout
+注意：rapid-mysql用`resource`参数而不是`database`参数来指定数据库名。`resource`支持`dbname.tablename`格式，在get/set接口中如果未
+指定`tablename`，则使用`resource`中指定的`tablename`。
 
 返回：Agent对象
 
@@ -257,6 +234,9 @@ db.update('test', {name:'Jerry', gid:1000, fid:0}, {
 
 ```
 
+###function get(key:string): Promise
+
+执行get
 
 ----
 
@@ -325,8 +305,6 @@ stmt.query([userid]).then(function(results){...});
 返回：Promise对象
 
 
-
-
 ----
 
 Transaction
@@ -345,3 +323,4 @@ Transaction是Agent.begin返回的结果，继承于QueryContext，所有的请�
 发送rollback并结束事务
 
 返回：Promise对象。
+

@@ -6,6 +6,19 @@ var mysql = require('mysql'),
 exports = module.exports = MysqlAgent;
 
 function MysqlAgent(options) {
+    var resource = options.resource;
+    if (resource) {
+        var idx = resource.indexOf('.');
+        if (idx === -1) { // /database
+            options.database = resource;
+        } else {
+            options.database = resource.substr(0, idx);
+            this._tableName = resource.substr(idx + 1);
+        }
+    }
+    if (options.key) {
+        this._key = options.key;
+    }
     var conf = this._conf = util._extend({}, this._conf);
 
     for (var keys = Object.keys(conf), n = keys.length; n--;) {
@@ -145,10 +158,11 @@ function MysqlAgent(options) {
     }
 
 }
-var MysqlQueryContext = require('./MysqlQueryContext');
+var MysqlImpl = require('./MysqlImpl');
 
 MysqlAgent.prototype = {
-    __proto__: MysqlQueryContext.prototype,
+    __proto__: MysqlImpl.prototype,
+    impl: {db: true, storage: true},
     _conf: {
         clusters: null,
         maxConnects: 30,
@@ -158,16 +172,18 @@ MysqlAgent.prototype = {
         maxRetries: 3
     },
     _context: null,
+    _tableName: null,
+    _key: 'id',
     constructor: exports,
     begin: function (cb) {
-        var ctx = this._context;
+        var self = this;
         var oldErr = new Error();
         return promiseCallback(Q.Promise(function (resolve, reject) {
-            ctx.getConnection(function (err, conn) {
+            self._context.getConnection(function (err, conn) {
                 if (err) {
                     return reject(makeError(err, oldErr));
                 } else {
-                    resolve(transaction(ctx, conn));
+                    resolve(transaction(self, conn, self));
                 }
             }, true);
         }), cb);
@@ -185,7 +201,7 @@ MysqlAgent.prototype = {
 };
 
 
-function transaction(ctx, conn) {
+function transaction(agent, conn) {
     conn.query('begin');
     return {
         _context: {
@@ -194,7 +210,9 @@ function transaction(ctx, conn) {
             }, releaseConnection: function () {
             }
         },
-        __proto__: MysqlQueryContext.prototype,
+        _tableName: agent._tableName,
+        _key: agent._key,
+        __proto__: MysqlImpl.prototype,
         commit: function (cb) {
             return end('commit', cb);
         },
@@ -212,7 +230,7 @@ function transaction(ctx, conn) {
                 } else {
                     resolve();
                 }
-                ctx.releaseConnection(_conn);
+                agent._context.releaseConnection(_conn);
             });
         }), cb);
     }

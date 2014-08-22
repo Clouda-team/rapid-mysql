@@ -4,7 +4,11 @@ var db, mysql = require('../');
 describe('main', function () {
 
     it('get agent', function (next) {
-        db = mysql.db('mysql://root:root@localhost:3306/test');
+        db = mysql.instance({
+            user: 'root',
+            password: 'root',
+            resource: 'test'
+        });
         db.query('select 1+1 as result', function (err, rows) {
             assert.ifError(err);
             assert(rows[0].result == 2);
@@ -14,7 +18,14 @@ describe('main', function () {
 
     this.timeout(3000);
     it('promise error', function (next) {
-        mysql.db('mysql://root:root@localhost:3307/test?retryTimeout=10&connectTimeout=500').query('select 1').then(function (result) {
+        mysql.instance({
+            port: 3307,
+            user: 'root',
+            password: 'root',
+            resource: 'test',
+            retryTimeout: 10,
+            connectTimeout: 500
+        }).query('select 1').then(function (result) {
             throw 'should not been resolved';
         }, function (err) {
             assert(err);
@@ -32,7 +43,15 @@ describe('main', function () {
     });
 
     it('using clusters', function (next) {
-        var db = mysql.db('mysql://root:root@newhost:3306/test?clusters=127.0.0.1%7Clocalhost%3Fslave%3Dtrue');
+        var db = mysql.instance({
+            host: 'newhost',
+            user: 'root',
+            password: 'root',
+            clusters: [
+                {host: '127.0.0.1'},
+                {host: 'localhost', slave: true}
+            ]
+        });
         var ctx = db._context;
         ctx.getConnection(function (err, conn) {
             assert.ifError(err);
@@ -59,7 +78,7 @@ describe('main', function () {
         });
     });
     it('cluster retries', function (next) {
-        var db = mysql.db({
+        var db = mysql.instance({
             hostname: 'somehost',
             port: 3307,
             user: 'root',
@@ -393,4 +412,51 @@ describe('update', function () {
         }).done();
     });
 
+});
+
+describe('get', function () {
+    it('get by id', function (next) {
+        db.get('test.678').then(function (ret) {
+            assert.deepEqual(ret, {
+                id: 678, name: 'Kyrios', gid: 1001
+            });
+            next();
+        }).done();
+    });
+
+    it('get with default table name', function (next) {
+        mysql.instance({user: 'root', password: 'root', resource: 'test.test'}).get(678).then(function (ret) {
+            assert.deepEqual(ret, {
+                id: 678, name: 'Kyrios', gid: 1001
+            });
+            next();
+        }).done();
+    });
+    it('get with custom key', function (next) {
+        mysql.instance({user: 'root', password: 'root', resource: 'test.test', key: 'gid'}).get(1001).then(function (ret) {
+            assert.deepEqual(ret, {
+                id: 678, name: 'Kyrios', gid: 1001
+            });
+            next();
+        }).done();
+    });
+
+    it('get non-exis', function (next) {
+        db.get('test.notFound').then(function (ret) {
+            assert.strictEqual(ret, undefined);
+            next();
+        }).done();
+    });
+});
+
+
+describe('set', function () {
+    it('set by id', function (next) {
+        db.set('test.678', {gid: 1002}).then(function () {
+            return db.get('test.678').then(function (ret) {
+                assert.strictEqual(ret.gid, 1002);
+                next();
+            });
+        }).done();
+    });
 });

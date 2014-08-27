@@ -460,3 +460,14 @@ describe('set', function () {
         }).done();
     });
 });
+
+describe('delete', function () {
+    it('delete by id', function (next) {
+        db.delete('test.678', {gid: 1002}).then(function () {
+            return db.get('test.678').then(function (ret) {
+                assert.strictEqual(ret, undefined);
+                next();
+            });
+        }).done();
+    });
+})

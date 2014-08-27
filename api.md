@@ -236,7 +236,9 @@ db.update('test', {name:'Jerry', gid:1000, fid:0}, {
 
 ###function get(key:string): Promise
 
-执行get
+###function set(key:string, val:object): Promise
+
+###function delete(key:string): Promise
 
 ----
 

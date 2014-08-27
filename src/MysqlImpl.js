@@ -202,6 +202,14 @@ MysqlImpl.prototype = {
                 return key + '=values(' + key + ')';
             }).join()
         });
+    },
+    'delete': function (key) {
+        var tbl = this._tableName, idx;
+        if (typeof key === 'string' && (idx = key.indexOf('.')) + 1) {
+            tbl = key.substr(0, idx);
+            key = key.substr(idx + 1);
+        }
+        return this.query('DELETE from ?? where ??=?', [tbl, this._key, key]);
     }
 };
 

@@ -176,7 +176,7 @@ MysqlImpl.prototype = {
         return promiseCallback(this.query(sql), cb);
     },
     _buildQuery: buildSelectQuery,
-    get: function (key) {
+    get: function (key, options) {
         var tbl = this._tableName, idx;
         if (typeof key === 'string' && (idx = key.indexOf('.')) + 1) {
             tbl = key.substr(0, idx);
@@ -185,10 +185,14 @@ MysqlImpl.prototype = {
         var query = {};
         query[this._key] = key;
 
-        return this.find(tbl, query, {limit: 1}).then(function (arr) {
+        options = options || {};
+        options.limit = 1;
+
+        return this.find(tbl, query, options).then(function (arr) {
             return arr[0];
         });
-    }, set: function (key, val) {
+    },
+    set: function (key, val) {
         var tbl = this._tableName, idx;
         if (typeof key === 'string' && (idx = key.indexOf('.')) + 1) {
             tbl = key.substr(0, idx);

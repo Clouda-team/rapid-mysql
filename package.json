@@ -1,6 +1,6 @@
 {
     "name": "rapid-mysql",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "mysql database access extension for rapid",
     "main": "index.js",
     "directories": {
